@@ -16,16 +16,16 @@ Table of Contents
 * [Description](#description)
 * [Variables](https/github.com/vozlt/nginx-module-sts#variables)
 * [Directives](#directives)
- * [server_traffic_status](https/github.com/vozlt/nginx-module-sts#server_traffic_status)
- * [server_traffic_status_zone](https/github.com/vozlt/nginx-module-sts#server_traffic_status_zone)
- * [server_traffic_status_filter](https/github.com/vozlt/nginx-module-sts#server_traffic_status_filter)
- * [server_traffic_status_filter_by_host](https/github.com/vozlt/nginx-module-sts#server_traffic_status_filter_by_host)
- * [server_traffic_status_filter_by_set_key](https/github.com/vozlt/nginx-module-sts#server_traffic_status_filter_by_set_key)
- * [server_traffic_status_filter_check_duplicate](https/github.com/vozlt/nginx-module-sts#server_traffic_status_filter_check_duplicate)
- * [server_traffic_status_limit](https/github.com/vozlt/nginx-module-sts#server_traffic_status_limit)
- * [server_traffic_status_limit_traffic](https/github.com/vozlt/nginx-module-sts#server_traffic_status_limit_traffic)
- * [server_traffic_status_limit_traffic_by_set_key](https/github.com/vozlt/nginx-module-sts#server_traffic_status_limit_traffic_by_set_key)
- * [server_traffic_status_limit_check_duplicate](https/github.com/vozlt/nginx-module-sts#server_traffic_status_limit_check_duplicate)
+  * [server_traffic_status](https/github.com/vozlt/nginx-module-sts#server_traffic_status)
+  * [server_traffic_status_zone](https/github.com/vozlt/nginx-module-sts#server_traffic_status_zone)
+  * [server_traffic_status_filter](https/github.com/vozlt/nginx-module-sts#server_traffic_status_filter)
+  * [server_traffic_status_filter_by_host](https/github.com/vozlt/nginx-module-sts#server_traffic_status_filter_by_host)
+  * [server_traffic_status_filter_by_set_key](https/github.com/vozlt/nginx-module-sts#server_traffic_status_filter_by_set_key)
+  * [server_traffic_status_filter_check_duplicate](https/github.com/vozlt/nginx-module-sts#server_traffic_status_filter_check_duplicate)
+  * [server_traffic_status_limit](https/github.com/vozlt/nginx-module-sts#server_traffic_status_limit)
+  * [server_traffic_status_limit_traffic](https/github.com/vozlt/nginx-module-sts#server_traffic_status_limit_traffic)
+  * [server_traffic_status_limit_traffic_by_set_key](https/github.com/vozlt/nginx-module-sts#server_traffic_status_limit_traffic_by_set_key)
+  * [server_traffic_status_limit_check_duplicate](https/github.com/vozlt/nginx-module-sts#server_traffic_status_limit_check_duplicate)
 * [See Also](#see-also)
 * [TODO](#todo)
 * [Donation](#donation)
@@ -106,13 +106,13 @@ This module is the core module of two modules([nginx-module-sts](https://github.
 The functions of each module are as follows:
 
 * [nginx-module-stream-sts](https://github.com/vozlt/nginx-module-stream-sts)
- * Support for implementing stream server stats.
- * Support for implementing stream filter.
- * Support for implementing stream limit.
- * Support for implementing stream embedded variables.
+  * Support for implementing stream server stats.
+  * Support for implementing stream filter.
+  * Support for implementing stream limit.
+  * Support for implementing stream embedded variables.
 * [nginx-module-sts](https://github.com/vozlt/nginx-module-sts)
- * Support for implementing display of stream server stats.
- * Support for implementing control of stream server stats.
+  * Support for implementing display of stream server stats.
+  * Support for implementing control of stream server stats.
 
 ## See Also
 * [nginx-module-sts](https://github.com/vozlt/nginx-module-sts)
