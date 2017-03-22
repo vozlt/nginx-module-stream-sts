@@ -8,6 +8,7 @@
 #define _NGX_STREAM_STS_MODULE_H_INCLUDED_
 
 
+#include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_stream.h>
 
