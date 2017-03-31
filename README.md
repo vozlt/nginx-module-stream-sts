@@ -39,9 +39,10 @@ This document describes nginx-module-stream-sts `v0.1.0` released on 20 Feb 2017
 * [nginx-module-sts](https://github.com/vozlt/nginx-module-sts)
 
 ## Compatibility
-* 1.11.x (last tested: 1.11.10)
+* Nginx
+  * 1.11.5 \<= (last tested: 1.11.10)
 
-Earlier versions is not tested.
+Earlier versions does not work.
 
 ## Screenshots
 ![nginx-module-sts screenshot](https://cloud.githubusercontent.com/assets/3648408/23112117/e8c56cda-f770-11e6-9c68-f57cbf4dd542.png "screenshot with deault")
