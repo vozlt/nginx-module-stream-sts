@@ -19,7 +19,6 @@ Table of Contents
   * [server_traffic_status](https://github.com/vozlt/nginx-module-sts#server_traffic_status)
   * [server_traffic_status_zone](https://github.com/vozlt/nginx-module-sts#server_traffic_status_zone)
   * [server_traffic_status_filter](https://github.com/vozlt/nginx-module-sts#server_traffic_status_filter)
-  * [server_traffic_status_filter_by_host](https://github.com/vozlt/nginx-module-sts#server_traffic_status_filter_by_host)
   * [server_traffic_status_filter_by_set_key](https://github.com/vozlt/nginx-module-sts#server_traffic_status_filter_by_set_key)
   * [server_traffic_status_filter_check_duplicate](https://github.com/vozlt/nginx-module-sts#server_traffic_status_filter_check_duplicate)
   * [server_traffic_status_limit](https://github.com/vozlt/nginx-module-sts#server_traffic_status_limit)
