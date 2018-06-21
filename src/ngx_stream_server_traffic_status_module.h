@@ -142,6 +142,7 @@ typedef struct {
 } ngx_stream_server_traffic_status_conf_t;
 
 
+ngx_msec_t ngx_stream_server_traffic_status_current_msec(void);
 ngx_msec_int_t ngx_stream_server_traffic_status_session_time(ngx_stream_session_t *s);
 ngx_msec_int_t ngx_stream_server_traffic_status_upstream_response_time(ngx_stream_session_t *s,
     uintptr_t data);

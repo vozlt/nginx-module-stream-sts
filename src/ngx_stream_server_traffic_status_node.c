@@ -297,7 +297,7 @@ ngx_stream_server_traffic_status_node_time_queue_push(
         return NGX_ERROR;
     }
 
-    q->times[q->rear].time = ngx_current_msec;
+    q->times[q->rear].time = ngx_stream_server_traffic_status_current_msec();
     q->times[q->rear].msec = x;
     q->rear = (q->rear + 1) % q->len;
 
