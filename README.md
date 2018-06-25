@@ -25,6 +25,8 @@ Table of Contents
   * [server_traffic_status_limit_traffic](https://github.com/vozlt/nginx-module-sts#server_traffic_status_limit_traffic)
   * [server_traffic_status_limit_traffic_by_set_key](https://github.com/vozlt/nginx-module-sts#server_traffic_status_limit_traffic_by_set_key)
   * [server_traffic_status_limit_check_duplicate](https://github.com/vozlt/nginx-module-sts#server_traffic_status_limit_check_duplicate)
+  * [server_traffic_status_average_method](https://github.com/vozlt/nginx-module-sts#server_traffic_status_average_method)
+  * [server_traffic_status_histogram_buckets](https://github.com/vozlt/nginx-module-sts#server_traffic_status_histogram_buckets)
 * [See Also](#see-also)
 * [TODO](#todo)
 * [Donation](#donation)

@@ -22,6 +22,10 @@ static ngx_int_t ngx_stream_server_traffic_status_init_zone(
     ngx_shm_zone_t *shm_zone, void *data);
 static char *ngx_stream_server_traffic_status_zone(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
+static char *ngx_stream_server_traffic_status_average_method(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf);
+static char *ngx_stream_server_traffic_status_histogram_buckets(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf);
 
 static ngx_int_t ngx_stream_server_traffic_status_preconfiguration(ngx_conf_t *cf);
 static void *ngx_stream_server_traffic_status_create_main_conf(ngx_conf_t *cf);
@@ -31,6 +35,13 @@ static void *ngx_stream_server_traffic_status_create_loc_conf(ngx_conf_t *cf);
 static char *ngx_stream_server_traffic_status_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child);
 static ngx_int_t ngx_stream_server_traffic_status_init(ngx_conf_t *cf);
+
+
+static ngx_conf_enum_t  ngx_stream_server_traffic_status_average_method_post[] = {
+    { ngx_string("AMM"), NGX_STREAM_SERVER_TRAFFIC_STATUS_AVERAGE_METHOD_AMM },
+    { ngx_string("WMA"), NGX_STREAM_SERVER_TRAFFIC_STATUS_AVERAGE_METHOD_WMA },
+    { ngx_null_string, 0 }
+};
 
 
 static ngx_command_t ngx_stream_server_traffic_status_commands[] = {
@@ -71,7 +82,7 @@ static ngx_command_t ngx_stream_server_traffic_status_commands[] = {
       NULL },
 
     { ngx_string("server_traffic_status_limit_check_duplicate"),
-      NGX_STREAM_MAIN_CONF|NGX_STREAM_SRV_CONF|NGX_STREAM_SRV_CONF|NGX_CONF_FLAG,
+      NGX_STREAM_MAIN_CONF|NGX_STREAM_SRV_CONF|NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_server_traffic_status_conf_t, limit_check_duplicate),
@@ -95,6 +106,20 @@ static ngx_command_t ngx_stream_server_traffic_status_commands[] = {
       NGX_STREAM_MAIN_CONF|NGX_CONF_NOARGS|NGX_CONF_TAKE1,
       ngx_stream_server_traffic_status_zone,
       0,
+      0,
+      NULL },
+
+    { ngx_string("server_traffic_status_average_method"),
+      NGX_STREAM_MAIN_CONF|NGX_STREAM_SRV_CONF|NGX_CONF_TAKE12,
+      ngx_stream_server_traffic_status_average_method,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("server_traffic_status_histogram_buckets"),
+      NGX_STREAM_MAIN_CONF|NGX_STREAM_SRV_CONF|NGX_CONF_1MORE,
+      ngx_stream_server_traffic_status_histogram_buckets,
+      NGX_STREAM_SRV_CONF_OFFSET,
       0,
       NULL },
 
@@ -421,6 +446,97 @@ ngx_stream_server_traffic_status_zone(ngx_conf_t *cf, ngx_command_t *cmd, void *
 }
 
 
+static char *
+ngx_stream_server_traffic_status_average_method(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+    ngx_stream_server_traffic_status_conf_t *stscf = conf;
+
+    char       *rv;
+    ngx_int_t   rc;
+    ngx_str_t  *value;
+
+    value = cf->args->elts;
+
+    cmd->offset = offsetof(ngx_stream_server_traffic_status_conf_t, average_method);
+    cmd->post = &ngx_stream_server_traffic_status_average_method_post;
+
+    rv = ngx_conf_set_enum_slot(cf, cmd, conf);
+    if (rv != NGX_CONF_OK) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid parameter \"%V\"", &value[1]);
+        goto invalid;
+    }
+
+    /* second argument process */
+    if (cf->args->nelts == 3) {
+        rc = ngx_parse_time(&value[2], 0);
+        if (rc == NGX_ERROR) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid parameter \"%V\"", &value[2]);
+            goto invalid;
+        }
+        stscf->average_period = (ngx_msec_t) rc;
+    }
+
+    return NGX_CONF_OK;
+
+invalid:
+
+    return NGX_CONF_ERROR;
+}
+
+
+static char *
+ngx_stream_server_traffic_status_histogram_buckets(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+    ngx_stream_server_traffic_status_conf_t *stscf = conf;
+
+    ngx_str_t                                          *value;
+    ngx_int_t                                           n;
+    ngx_uint_t                                          i;
+    ngx_array_t                                        *histogram_buckets;
+    ngx_stream_server_traffic_status_node_histogram_t  *buckets;
+
+    histogram_buckets = ngx_array_create(cf->pool, 1,
+                            sizeof(ngx_stream_server_traffic_status_node_histogram_t));
+    if (histogram_buckets == NULL) {
+        goto invalid;
+    }
+
+    value = cf->args->elts;
+
+    /* arguments process */
+    for (i = 1; i < cf->args->nelts; i++) {
+        if (i > NGX_STREAM_SERVER_TRAFFIC_STATUS_DEFAULT_BUCKET_LEN) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "histogram bucket size exceeds %d",
+                               NGX_STREAM_SERVER_TRAFFIC_STATUS_DEFAULT_BUCKET_LEN);
+            break;
+        }
+
+        n = ngx_atofp(value[i].data, value[i].len, 3);
+        if (n == NGX_ERROR || n == 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid parameter \"%V\"", &value[i]);
+            goto invalid;
+        }
+
+        buckets = ngx_array_push(histogram_buckets);
+        if (buckets == NULL) {
+            goto invalid;
+        }
+
+        buckets->msec = (ngx_msec_int_t) n;
+    }
+
+    stscf->histogram_buckets = histogram_buckets;
+
+    return NGX_CONF_OK;
+
+invalid:
+
+    return NGX_CONF_ERROR;
+}
+
+
 static ngx_int_t
 ngx_stream_server_traffic_status_preconfiguration(ngx_conf_t *cf)
 {
@@ -506,13 +622,40 @@ ngx_stream_server_traffic_status_create_loc_conf(ngx_conf_t *cf)
         return NULL;
     }
 
-    conf->start_msec = ngx_stream_server_traffic_status_current_msec();
+    /*
+     * set by ngx_pcalloc():
+     *
+     *     conf->shm_zone = { NULL, ... };
+     *     conf->shm_name = { 0, NULL };
+     *     conf->enable = 0;
+     *     conf->filter = 0;
+     *     conf->filter_check_duplicate = 0;
+     *     conf->filter_keys = { NULL, ... };
+     *
+     *     conf->limit = 0;
+     *     conf->limit_check_duplicate = 0;
+     *     conf->limit_traffics = { NULL, ... };
+     *     conf->limit_filter_traffics = { NULL, ... };
+     *
+     *     conf->stats = { 0, ... };
+     *     conf->start_msec = 0;
+     *
+     *     conf->average_method = 0;
+     *     conf->average_period = 0;
+     *     conf->histogram_buckets = { NULL, ... };
+     */
+
+    conf->shm_zone = NGX_CONF_UNSET_PTR;
     conf->enable = NGX_CONF_UNSET;
     conf->filter = NGX_CONF_UNSET;
     conf->filter_check_duplicate = NGX_CONF_UNSET;
     conf->limit = NGX_CONF_UNSET;
     conf->limit_check_duplicate = NGX_CONF_UNSET;
-    conf->shm_zone = NGX_CONF_UNSET_PTR;
+    conf->start_msec = ngx_stream_server_traffic_status_current_msec();
+
+    conf->average_method = NGX_CONF_UNSET;
+    conf->average_period = NGX_CONF_UNSET_MSEC;
+    conf->histogram_buckets = NGX_CONF_UNSET_PTR;
 
     conf->node_caches = ngx_pcalloc(cf->pool, sizeof(ngx_rbtree_node_t *)
                                     * (NGX_STREAM_SERVER_TRAFFIC_STATUS_UPSTREAM_FG + 1));
@@ -599,12 +742,18 @@ ngx_stream_server_traffic_status_merge_loc_conf(ngx_conf_t *cf, void *parent, vo
         }
     }
 
+    ngx_conf_merge_ptr_value(conf->shm_zone, prev->shm_zone, NULL);
     ngx_conf_merge_value(conf->enable, prev->enable, 1);
     ngx_conf_merge_value(conf->filter, prev->filter, 1);
     ngx_conf_merge_value(conf->filter_check_duplicate, prev->filter_check_duplicate, 1);
     ngx_conf_merge_value(conf->limit, prev->limit, 1);
     ngx_conf_merge_value(conf->limit_check_duplicate, prev->limit_check_duplicate, 1);
-    ngx_conf_merge_ptr_value(conf->shm_zone, prev->shm_zone, NULL);
+
+    ngx_conf_merge_value(conf->average_method, prev->average_method,
+                         NGX_STREAM_SERVER_TRAFFIC_STATUS_AVERAGE_METHOD_AMM);
+    ngx_conf_merge_msec_value(conf->average_period, prev->average_period,
+                              NGX_STREAM_SERVER_TRAFFIC_STATUS_DEFAULT_AVG_PERIOD * 1000);
+    ngx_conf_merge_ptr_value(conf->histogram_buckets, prev->histogram_buckets, NULL);
 
     name = ctx->shm_name;
 

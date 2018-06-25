@@ -105,31 +105,79 @@ static ngx_int_t
 ngx_stream_server_traffic_status_shm_add_node_upstream(ngx_stream_session_t *s,
     ngx_stream_server_traffic_status_node_t *stsn, unsigned init)
 {
-    ngx_msec_int_t  connect_time, first_byte_time, session_time;
+    ngx_msec_int_t                            connect_time, first_byte_time, session_time;
+    ngx_stream_server_traffic_status_node_t   ostsn;
+    ngx_stream_server_traffic_status_conf_t  *stscf;
 
+    stscf = ngx_stream_get_module_srv_conf(s, ngx_stream_server_traffic_status_module);
+
+    ostsn = *stsn;
     connect_time = ngx_stream_server_traffic_status_upstream_response_time(s, 2);
     first_byte_time = ngx_stream_server_traffic_status_upstream_response_time(s, 1); 
     session_time = ngx_stream_server_traffic_status_upstream_response_time(s, 0); 
 
-    ngx_stream_server_traffic_status_node_time_queue_insert(&stsn->stat_upstream.connect_times,
-                                                           connect_time);
-    ngx_stream_server_traffic_status_node_time_queue_insert(&stsn->stat_upstream.first_byte_times,
-                                                           connect_time);
-    ngx_stream_server_traffic_status_node_time_queue_insert(&stsn->stat_upstream.session_times,
-                                                           session_time);
+    ngx_stream_server_traffic_status_node_time_queue_insert(
+        &stsn->stat_upstream.connect_times,
+        connect_time);
+    ngx_stream_server_traffic_status_node_time_queue_insert(
+        &stsn->stat_upstream.first_byte_times,
+        connect_time);
+    ngx_stream_server_traffic_status_node_time_queue_insert(
+        &stsn->stat_upstream.session_times,
+        session_time);
+
+    ngx_stream_server_traffic_status_node_histogram_observe(
+        &stsn->stat_upstream.connect_buckets,
+        connect_time);
+
+    ngx_stream_server_traffic_status_node_histogram_observe(
+        &stsn->stat_upstream.first_byte_buckets,
+        first_byte_time);
+
+    ngx_stream_server_traffic_status_node_histogram_observe(
+        &stsn->stat_upstream.session_buckets,
+        session_time);
 
     if (init == NGX_STREAM_SERVER_TRAFFIC_STATUS_NODE_NONE) {
+        stsn->stat_upstream.connect_time_counter = (ngx_atomic_uint_t) connect_time;
         stsn->stat_upstream.connect_time = (ngx_msec_t) connect_time;
+        stsn->stat_upstream.first_byte_time_counter = (ngx_atomic_uint_t) first_byte_time;
         stsn->stat_upstream.first_byte_time = (ngx_msec_t) first_byte_time;
+        stsn->stat_upstream.session_time_counter = (ngx_atomic_uint_t) session_time;
         stsn->stat_upstream.session_time = (ngx_msec_t) session_time;
 
     } else {
-        stsn->stat_upstream.connect_time = ngx_stream_server_traffic_status_node_time_queue_wma(
-                                               &stsn->stat_upstream.connect_times);
-        stsn->stat_upstream.first_byte_time = ngx_stream_server_traffic_status_node_time_queue_wma(
-                                                  &stsn->stat_upstream.first_byte_times);
-        stsn->stat_upstream.session_time = ngx_stream_server_traffic_status_node_time_queue_wma(
-                                               &stsn->stat_upstream.session_times);
+        stsn->stat_upstream.connect_time_counter += (ngx_atomic_uint_t) connect_time;
+        stsn->stat_upstream.connect_time = ngx_stream_server_traffic_status_node_time_queue_average(
+                                               &stsn->stat_upstream.connect_times,
+                                               stscf->average_method, stscf->average_period);
+
+        stsn->stat_upstream.first_byte_time_counter += (ngx_atomic_uint_t) first_byte_time;
+        stsn->stat_upstream.first_byte_time = ngx_stream_server_traffic_status_node_time_queue_average(
+                                                  &stsn->stat_upstream.first_byte_times,
+                                                  stscf->average_method, stscf->average_period);
+
+        stsn->stat_upstream.session_time_counter += (ngx_atomic_uint_t) session_time;
+        stsn->stat_upstream.session_time = ngx_stream_server_traffic_status_node_time_queue_average(
+                                               &stsn->stat_upstream.session_times,
+                                               stscf->average_method, stscf->average_period);
+
+        /* overflow */
+        if (ostsn.stat_upstream.connect_time_counter
+            > stsn->stat_upstream.connect_time_counter)
+        {
+            stsn->stat_u_connect_time_counter_oc++;
+        }
+        if (ostsn.stat_upstream.first_byte_time_counter
+            > stsn->stat_upstream.first_byte_time_counter)
+        {
+            stsn->stat_u_first_byte_time_counter_oc++;
+        }
+        if (ostsn.stat_upstream.session_time_counter
+            > stsn->stat_upstream.session_time_counter)
+        {
+            stsn->stat_u_session_time_counter_oc++;
+        }
     }
 
     return NGX_OK;

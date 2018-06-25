@@ -193,6 +193,7 @@ ngx_stream_server_traffic_status_node_zero(ngx_stream_server_traffic_status_node
     stsn->stat_4xx_counter = 0;
     stsn->stat_5xx_counter = 0;
 
+    stsn->stat_session_time_counter = 0;
     stsn->stat_session_time = 0;
 
     stsn->stat_connect_counter_oc = 0;
@@ -203,6 +204,10 @@ ngx_stream_server_traffic_status_node_zero(ngx_stream_server_traffic_status_node
     stsn->stat_3xx_counter_oc = 0;
     stsn->stat_4xx_counter_oc = 0;
     stsn->stat_5xx_counter_oc = 0;
+    stsn->stat_session_time_counter_oc = 0;
+    stsn->stat_u_connect_time_counter_oc = 0;
+    stsn->stat_u_first_byte_time_counter_oc = 0;
+    stsn->stat_u_session_time_counter_oc = 0;
 }
 
 
@@ -215,17 +220,31 @@ ngx_stream_server_traffic_status_node_init(ngx_stream_session_t *s,
     /* init serverZone */
     ngx_stream_server_traffic_status_node_zero(stsn);
     ngx_stream_server_traffic_status_node_time_queue_init(&stsn->stat_session_times);
+    ngx_stream_server_traffic_status_node_histogram_bucket_init(s,
+        &stsn->stat_session_buckets);
     stsn->port = ngx_inet_get_port(s->connection->local_sockaddr);
     stsn->protocol = s->connection->type;
 
     /* init upstreamZone */
     stsn->stat_upstream.type = NGX_STREAM_SERVER_TRAFFIC_STATUS_UPSTREAM_NO;
+    stsn->stat_upstream.connect_time_counter = 0;
     stsn->stat_upstream.connect_time = 0;
+    stsn->stat_upstream.first_byte_time_counter = 0;
     stsn->stat_upstream.first_byte_time = 0;
+    stsn->stat_upstream.session_time_counter = 0;
     stsn->stat_upstream.session_time = 0;
-    ngx_stream_server_traffic_status_node_time_queue_init(&stsn->stat_upstream.connect_times);
-    ngx_stream_server_traffic_status_node_time_queue_init(&stsn->stat_upstream.first_byte_times);
-    ngx_stream_server_traffic_status_node_time_queue_init(&stsn->stat_upstream.session_times);
+    ngx_stream_server_traffic_status_node_time_queue_init(
+        &stsn->stat_upstream.connect_times);
+    ngx_stream_server_traffic_status_node_time_queue_init(
+        &stsn->stat_upstream.first_byte_times);
+    ngx_stream_server_traffic_status_node_time_queue_init(
+        &stsn->stat_upstream.session_times);
+    ngx_stream_server_traffic_status_node_histogram_bucket_init(s,
+        &stsn->stat_upstream.connect_buckets);
+    ngx_stream_server_traffic_status_node_histogram_bucket_init(s,
+        &stsn->stat_upstream.first_byte_buckets);
+    ngx_stream_server_traffic_status_node_histogram_bucket_init(s,
+        &stsn->stat_upstream.session_buckets);
 
     /* set serverZone */
     stsn->stat_connect_counter = 1;
@@ -235,6 +254,7 @@ ngx_stream_server_traffic_status_node_init(ngx_stream_session_t *s,
     ngx_stream_server_traffic_status_add_rc(status, stsn);
 
     stsn->stat_session_time = (ngx_msec_t) ngx_stream_server_traffic_status_session_time(s);
+    stsn->stat_session_time_counter = (ngx_atomic_uint_t) stsn->stat_session_time; 
 
     ngx_stream_server_traffic_status_node_time_queue_insert(&stsn->stat_session_times,
         stsn->stat_session_time);
@@ -245,9 +265,12 @@ void
 ngx_stream_server_traffic_status_node_set(ngx_stream_session_t *s,
     ngx_stream_server_traffic_status_node_t *stsn)
 {
-    ngx_uint_t                               status;
-    ngx_msec_int_t                           ms;
-    ngx_stream_server_traffic_status_node_t  ostsn;
+    ngx_uint_t                                status;
+    ngx_msec_int_t                            ms;
+    ngx_stream_server_traffic_status_node_t   ostsn;
+    ngx_stream_server_traffic_status_conf_t  *stscf;
+
+    stscf = ngx_stream_get_module_srv_conf(s, ngx_stream_server_traffic_status_module);
 
     status = s->status;
     ostsn = *stsn;
@@ -260,11 +283,17 @@ ngx_stream_server_traffic_status_node_set(ngx_stream_session_t *s,
 
     ms = ngx_stream_server_traffic_status_session_time(s);
 
-    ngx_stream_server_traffic_status_node_time_queue_insert(&stsn->stat_session_times,
-                                                         ms);
+    stsn->stat_session_time_counter += (ngx_atomic_uint_t) ms;
 
-    stsn->stat_session_time = ngx_stream_server_traffic_status_node_time_queue_wma(
-                                  &stsn->stat_session_times);
+    ngx_stream_server_traffic_status_node_time_queue_insert(&stsn->stat_session_times,
+                                                            ms);
+
+    ngx_stream_server_traffic_status_node_histogram_observe(&stsn->stat_session_buckets,
+                                                            ms);
+
+    stsn->stat_session_time = ngx_stream_server_traffic_status_node_time_queue_average(
+                                  &stsn->stat_session_times, stscf->average_method,
+                                  stscf->average_period);
 
     ngx_stream_server_traffic_status_add_oc((&ostsn), stsn);
 }
@@ -338,13 +367,64 @@ ngx_stream_server_traffic_status_node_time_queue_insert(
 
 
 ngx_msec_t
-ngx_stream_server_traffic_status_node_time_queue_wma(
-    ngx_stream_server_traffic_status_node_time_queue_t *q)
+ngx_stream_server_traffic_status_node_time_queue_average(
+    ngx_stream_server_traffic_status_node_time_queue_t *q,
+    ngx_int_t method, ngx_msec_t period)
 {
-    ngx_int_t  i, j, k;
+    ngx_msec_t  avg;
+
+    if (method == NGX_STREAM_SERVER_TRAFFIC_STATUS_AVERAGE_METHOD_AMM) {
+        avg = ngx_stream_server_traffic_status_node_time_queue_amm(q, period);
+    } else {
+        avg = ngx_stream_server_traffic_status_node_time_queue_wma(q, period);
+    }
+
+    return avg;
+}
+
+
+ngx_msec_t
+ngx_stream_server_traffic_status_node_time_queue_amm(
+    ngx_stream_server_traffic_status_node_time_queue_t *q,
+    ngx_msec_t period)
+{
+    ngx_int_t   i, j, k;
+    ngx_msec_t  x, current_msec;
+
+    current_msec = ngx_stream_server_traffic_status_current_msec();
+
+    x = period ? (current_msec - period) : 0;
 
     for (i = q->front, j = 1, k = 0; i != q->rear; i = (i + 1) % q->len, j++) {
-        k += (ngx_int_t) q->times[i].msec * j;
+        if (x < q->times[i].time) {
+            k += (ngx_int_t) q->times[i].msec;
+        }
+    }
+
+    if (j != q->len) {
+        ngx_stream_server_traffic_status_node_time_queue_init(q);
+    }
+
+    return (ngx_msec_t) (k / (q->len - 1));
+}
+
+
+ngx_msec_t
+ngx_stream_server_traffic_status_node_time_queue_wma(
+    ngx_stream_server_traffic_status_node_time_queue_t *q,
+    ngx_msec_t period)
+{
+    ngx_int_t   i, j, k;
+    ngx_msec_t  x, current_msec;
+
+    current_msec = ngx_stream_server_traffic_status_current_msec();
+
+    x = period ? (current_msec - period) : 0;
+
+    for (i = q->front, j = 1, k = 0; i != q->rear; i = (i + 1) % q->len, j++) {
+        if (x < q->times[i].time) {
+            k += (ngx_int_t) q->times[i].msec * j;
+        }
     }
 
     if (j != q->len) {
@@ -353,6 +433,50 @@ ngx_stream_server_traffic_status_node_time_queue_wma(
 
     return (ngx_msec_t)
                (k / (ngx_int_t) ngx_stream_server_traffic_status_triangle((q->len - 1)));
+}
+
+
+void
+ngx_stream_server_traffic_status_node_histogram_bucket_init(
+    ngx_stream_session_t *s,
+    ngx_stream_server_traffic_status_node_histogram_bucket_t *b)
+{
+    ngx_uint_t                                          i, n;
+    ngx_stream_server_traffic_status_conf_t            *stscf;
+    ngx_stream_server_traffic_status_node_histogram_t  *buckets;
+
+    stscf = ngx_stream_get_module_srv_conf(s, ngx_stream_server_traffic_status_module);
+
+    if (stscf->histogram_buckets == NULL) {
+        b->len = 0;
+        return;
+    }
+
+    buckets = stscf->histogram_buckets->elts;
+    n = stscf->histogram_buckets->nelts;
+    b->len = n;
+
+    for (i = 0; i < n; i++) {
+        b->buckets[i].msec = buckets[i].msec;
+        b->buckets[i].counter = 0;
+    }
+}
+
+
+void
+ngx_stream_server_traffic_status_node_histogram_observe(
+    ngx_stream_server_traffic_status_node_histogram_bucket_t *b,
+    ngx_msec_int_t x)
+{
+    ngx_uint_t  i, n;
+
+    n = b->len;
+
+    for (i = 0; i < n; i++) {
+        if (x <= b->buckets[i].msec) {
+            b->buckets[i].counter++;
+        }
+    }
 }
 
 

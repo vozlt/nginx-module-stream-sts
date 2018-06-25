@@ -27,8 +27,12 @@
 
 #define NGX_STREAM_SERVER_TRAFFIC_STATUS_KEY_SEPARATOR        (u_char) 0x1f
 
+#define NGX_STREAM_SERVER_TRAFFIC_STATUS_AVERAGE_METHOD_AMM   0
+#define NGX_STREAM_SERVER_TRAFFIC_STATUS_AVERAGE_METHOD_WMA   1
+
 #define NGX_STREAM_SERVER_TRAFFIC_STATUS_DEFAULT_SHM_NAME     "stream_server_traffic_status"
 #define NGX_STREAM_SERVER_TRAFFIC_STATUS_DEFAULT_SHM_SIZE     0xfffff
+#define NGX_STREAM_SERVER_TRAFFIC_STATUS_DEFAULT_AVG_PERIOD   60
 
 #define ngx_stream_server_traffic_status_add_rc(s, n) {                   \
     if(s < 200) {n->stat_1xx_counter++;}                                  \
@@ -62,6 +66,9 @@
     }                                                                     \
     if (o->stat_5xx_counter > c->stat_5xx_counter) {                      \
         c->stat_5xx_counter_oc++;                                         \
+    }                                                                     \
+    if (o->stat_session_time_counter > c->stat_session_time_counter) {    \
+        c->stat_session_time_counter_oc++;                                \
     }                                                                     \
 }
 
@@ -116,6 +123,7 @@ typedef struct {
 
 typedef struct {
     ngx_shm_zone_t                            *shm_zone;
+    ngx_str_t                                  shm_name;
     ngx_flag_t                                 enable;
     ngx_flag_t                                 filter;
     ngx_flag_t                                 filter_check_duplicate;
@@ -132,11 +140,15 @@ typedef struct {
     /* array of ngx_stream_server_traffic_status_limit_t */
     ngx_array_t                               *limit_filter_traffics;
 
-    ngx_str_t                                  shm_name;
     ngx_stream_server_traffic_status_node_t    stats;
     ngx_msec_t                                 start_msec;
-    ngx_flag_t                                 format;
-    ngx_str_t                                  jsonp;
+
+    ngx_flag_t                                 average_method;
+    ngx_msec_t                                 average_period;
+
+    /* array of ngx_stream_server_traffic_status_node_histogram_t */
+    ngx_array_t                               *histogram_buckets;
+
 
     ngx_rbtree_node_t                        **node_caches;
 } ngx_stream_server_traffic_status_conf_t;
