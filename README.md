@@ -41,7 +41,7 @@ This document describes nginx-module-stream-sts `v0.1.0` released on 20 Feb 2017
 
 ## Compatibility
 * Nginx
-  * 1.11.5 \<= (last tested: 1.11.10)
+  * 1.11.5 \<= (last tested: 1.15.0)
 
 Earlier versions does not work.
 
@@ -61,6 +61,7 @@ Earlier versions does not work.
 
 2. Add the module to the build configuration by adding
   ```
+  --with-stream
   --add-module=/path/to/nginx-module-sts
   --add-module=/path/to/nginx-module-stream-sts
   ```
