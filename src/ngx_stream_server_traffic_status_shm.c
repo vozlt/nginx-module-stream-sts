@@ -121,7 +121,7 @@ ngx_stream_server_traffic_status_shm_add_node_upstream(ngx_stream_session_t *s,
         connect_time);
     ngx_stream_server_traffic_status_node_time_queue_insert(
         &stsn->stat_upstream.first_byte_times,
-        connect_time);
+        first_byte_time);
     ngx_stream_server_traffic_status_node_time_queue_insert(
         &stsn->stat_upstream.session_times,
         session_time);
